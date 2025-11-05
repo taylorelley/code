@@ -1,0 +1,31 @@
+# Development Dependencies
+# These are only needed for development/testing, not for production deployment
+
+# Testing
+pytest>=8.0.0
+pytest-asyncio>=0.23.0
+pytest-cov>=4.1.0
+pytest-mock>=3.12.0
+
+# Code quality
+black>=24.0.0
+flake8>=7.0.0
+mypy>=1.8.0
+pylint>=3.0.0
+isort>=5.13.0
+
+# Type stubs
+types-pyyaml>=6.0.0
+types-psutil>=5.9.0
+
+# Documentation
+sphinx>=7.2.0
+sphinx-rtd-theme>=2.0.0
+
+# Debugging
+ipython>=8.20.0
+ipdb>=0.13.0
+
+# Performance profiling
+py-spy>=0.3.0
+memory-profiler>=0.61.0

@@ -1,0 +1,25 @@
+# Code Pipeline Dependencies
+# Python 3.11 required for Open WebUI Pipelines compatibility
+
+# Core pipeline framework
+pydantic>=2.5.0
+typing-extensions>=4.8.0
+
+# Async support
+asyncio>=3.4.3
+
+# Process management
+psutil>=5.9.0
+
+# JSON-RPC support
+jsonrpclib-pelix>=0.4.3
+
+# HTTP server (for standalone testing)
+fastapi>=0.109.0
+uvicorn>=0.27.0
+sse-starlette>=2.0.0
+python-multipart>=0.0.6
+
+# Utilities
+python-dotenv>=1.0.0
+pyyaml>=6.0.0
