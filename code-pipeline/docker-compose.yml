@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  # Open WebUI main application
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: open-webui
+    ports:
+      - "3000:8080"
+    volumes:
+      - open-webui-data:/app/backend/data
+      - ./pipelines:/app/backend/pipelines  # Mount our Code pipeline
+    environment:
+      # Point to Code pipeline
+      - OPENAI_API_BASE_URLS=http://code-pipeline:9099/v1
+      - OPENAI_API_KEYS=dummy-key  # Code pipeline doesn't require auth
+      - ENABLE_SIGNUP=true
+      - WEBUI_NAME=Code WebUI
+    depends_on:
+      - code-pipeline
+    networks:
+      - webui-network
+
+  # Code Pipeline service
+  code-pipeline:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: code-pipeline
+    ports:
+      - "9099:9099"
+    volumes:
+      - code-workspace:/data/code-workspace
+      - ./pipelines:/app/pipelines  # For development
+      - ./utils:/app/utils  # For development
+      # Mount Docker socket for sandboxing (optional but recommended)
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - CODE_BINARY_PATH=/usr/local/bin/code
+      - CODE_WORKING_DIR=/data/code-workspace
+      - PIPELINES_PORT=9099
+      - LOG_LEVEL=info
+      # Optional: API keys for Code's LLM providers
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+    networks:
+      - webui-network
+
+volumes:
+  open-webui-data:
+    driver: local
+  code-workspace:
+    driver: local
+
+networks:
+  webui-network:
+    driver: bridge
