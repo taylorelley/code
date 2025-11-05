@@ -254,9 +254,18 @@ export function disconnectWebSocket() {
 function handleWebSocketMessage(sessionId: string, message: any) {
   const { type } = message;
 
-  sessions.update($sessions => {
-    const session = $sessions.get(sessionId);
-    if (!session) return $sessions;
+  sessions.update(($sessions) => {
+    const nextSessions = new Map($sessions);
+    const existing = nextSessions.get(sessionId);
+    if (!existing) return nextSessions;
+
+    const session: CodeSession = {
+      ...existing,
+      tools: new Map(existing.tools),
+      browserScreenshots: [...existing.browserScreenshots],
+      terminalSessions: new Map(existing.terminalSessions),
+      approvalRequests: new Map(existing.approvalRequests)
+    };
 
     switch (type) {
       case 'tool_execution':
@@ -291,8 +300,8 @@ function handleWebSocketMessage(sessionId: string, message: any) {
         console.warn('Unknown message type:', type);
     }
 
-    $sessions.set(sessionId, session);
-    return $sessions;
+    nextSessions.set(sessionId, session);
+    return nextSessions;
   });
 }
 
