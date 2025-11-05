@@ -26,9 +26,24 @@ WORKDIR /build
 
 # Copy Code source (assumes Dockerfile context includes parent directory)
 # Adjust paths based on your build context
-COPY ../package.json package.json 2>/dev/null || echo "{}" > package.json
-COPY ../tsconfig.json tsconfig.json 2>/dev/null || echo "{}" > tsconfig.json
-COPY ../code-rs code-rs 2>/dev/null || mkdir -p code-rs
+# Use RUN with shell logic since COPY doesn't support shell operators
+RUN if [ -f ../package.json ]; then \
+      cp ../package.json .; \
+    else \
+      echo "{}" > package.json; \
+    fi
+
+RUN if [ -f ../tsconfig.json ]; then \
+      cp ../tsconfig.json .; \
+    else \
+      echo "{}" > tsconfig.json; \
+    fi
+
+RUN if [ -d ../code-rs ]; then \
+      cp -r ../code-rs .; \
+    else \
+      mkdir -p code-rs; \
+    fi
 
 # Build Code binary (or use a mock for testing)
 # If source not available, create a simple mock binary

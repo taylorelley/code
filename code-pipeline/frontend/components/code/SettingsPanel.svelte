@@ -235,10 +235,20 @@
 
   // Show notification
   let notification = { show: false, message: '', type: 'info' };
+  let notificationTimeoutId: number | null = null;
+
   function showNotification(message: string, type: 'success' | 'error' | 'warning' | 'info') {
+    // Clear any pending timeout to prevent earlier timers from hiding this toast
+    if (notificationTimeoutId !== null) {
+      clearTimeout(notificationTimeoutId);
+    }
+
     notification = { show: true, message, type };
-    setTimeout(() => {
+
+    // Set new timeout and track its ID
+    notificationTimeoutId = setTimeout(() => {
       notification = { ...notification, show: false };
+      notificationTimeoutId = null;
     }, 3000);
   }
 

@@ -194,9 +194,11 @@ class FileTreeService:
             if self._should_ignore(entry.name, entry):
                 continue
 
+            # Use POSIX-style path separators (/) for cross-platform git status matching
+            relative_path = entry.relative_to(self.workspace_path)
             node = {
                 "name": entry.name,
-                "path": str(entry.relative_to(self.workspace_path)),
+                "path": relative_path.as_posix(),
                 "type": "directory" if entry.is_dir() else "file",
                 "depth": depth,
             }
@@ -244,9 +246,21 @@ class FileTreeService:
                 for line in result.stdout.strip().split("\n"):
                     if not line:
                         continue
-                    parts = line.split("\t", 1)
-                    if len(parts) == 2:
-                        status_code, file_path = parts
+                    parts = line.split("\t")
+                    if len(parts) < 2:
+                        continue
+
+                    status_code = parts[0]
+
+                    # Handle rename operations (e.g., "R100\told.py\tnew.py")
+                    if status_code.startswith("R"):
+                        # For renames: parts[1] is source, parts[2] is destination
+                        if len(parts) >= 3:
+                            file_path = parts[2]  # Use destination path
+                            status_map[file_path] = "staged"
+                    else:
+                        # For normal operations, use the last column as path
+                        file_path = parts[-1]
                         if status_code == "M":
                             status_map[file_path] = "staged"
                         elif status_code == "A":
@@ -267,9 +281,23 @@ class FileTreeService:
                 for line in result.stdout.strip().split("\n"):
                     if not line:
                         continue
-                    parts = line.split("\t", 1)
-                    if len(parts) == 2:
-                        status_code, file_path = parts
+                    parts = line.split("\t")
+                    if len(parts) < 2:
+                        continue
+
+                    status_code = parts[0]
+
+                    # Handle rename operations (e.g., "R100\told.py\tnew.py")
+                    if status_code.startswith("R"):
+                        # For renames: parts[1] is source, parts[2] is destination
+                        if len(parts) >= 3:
+                            file_path = parts[2]  # Use destination path
+                            # Only mark as modified if not already staged
+                            if file_path not in status_map:
+                                status_map[file_path] = "modified"
+                    else:
+                        # For normal operations, use the last column as path
+                        file_path = parts[-1]
                         # Only mark as modified if not already staged
                         if file_path not in status_map:
                             if status_code == "M":
@@ -314,7 +342,8 @@ class FileTreeService:
 
         # Get relative path from git_repo to workspace_path
         try:
-            relative_prefix = str(self.workspace_path.relative_to(self.git_repo))
+            # Use POSIX-style path for consistency with git output
+            relative_prefix = self.workspace_path.relative_to(self.git_repo).as_posix()
             if relative_prefix == ".":
                 return status_map
 
