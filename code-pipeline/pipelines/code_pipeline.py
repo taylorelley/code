@@ -252,9 +252,10 @@ class Pipeline:
             # Start the server
             await manager.start()
 
-            # Create event queue for distributing events to handlers
+            # Create bounded event queue for distributing events to handlers
             # This queue will be populated by a single background reader
-            event_queue = asyncio.Queue()
+            # Bounded to prevent memory exhaustion if consumers are slow
+            event_queue = asyncio.Queue(maxsize=1000)
 
             # CRITICAL: Start background event reader BEFORE making any JSON-RPC requests
             # This single task reads stdout and distributes events via queue
@@ -440,6 +441,12 @@ class Pipeline:
         try:
             logger.info("Starting background event reader")
             async for event in manager.stream_events():
+                # Warn if queue is filling up (potential slow consumer)
+                if event_queue.qsize() > 800:
+                    logger.warning(
+                        f"Event queue filling up: {event_queue.qsize()}/1000. "
+                        f"Consumers may be slow or blocked."
+                    )
                 # Push event to queue for handlers to consume
                 # This prevents race conditions by having a single reader
                 await event_queue.put(event)
