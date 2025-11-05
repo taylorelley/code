@@ -43,6 +43,8 @@ services:
       # Optional: API keys for Code's LLM providers
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+    cap_add:
+      - NET_ADMIN  # Required for network sysctl operations
     networks:
       - webui-network
 
