@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # Open WebUI main application
   open-webui:
@@ -43,11 +41,7 @@ services:
       # Optional: API keys for Code's LLM providers
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
-    cap_add:
-      - NET_ADMIN  # Required for network sysctl operations
-    security_opt:
-      - apparmor:unconfined  # Disable AppArmor to allow sysctl modifications
-      - seccomp:unconfined   # Disable seccomp to allow sysctl syscalls
+    privileged: true  # Required to allow sysctl modifications during container init
     networks:
       - webui-network
 
