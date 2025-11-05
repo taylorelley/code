@@ -62,7 +62,12 @@ class TestPipeline:
         pipeline = Pipeline()
 
         body = {"messages": []}
-        result = await pipeline.pipe(body)
+
+        # Collect response from async generator
+        result = []
+        async for chunk in pipeline.pipe(body):
+            result.append(chunk)
+        result = "".join(result)
 
         assert "Error" in result
         assert "No messages" in result

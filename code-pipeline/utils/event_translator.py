@@ -19,6 +19,7 @@ from typing import Dict, Any, Optional, List, Union
 from enum import Enum
 import json
 import time
+import uuid
 
 
 class EventType(str, Enum):
@@ -44,7 +45,7 @@ class OpenAIEvent:
     ):
         self.event_type = event_type
         self.data = data
-        self.event_id = event_id or str(int(time.time() * 1000))
+        self.event_id = event_id or uuid.uuid4().hex
 
     def to_sse_format(self) -> str:
         """Convert to SSE format string"""
@@ -77,6 +78,19 @@ class CodeEventTranslator:
         self.message_buffer: List[str] = []
         self.reasoning_buffer: List[str] = []
         self.current_tool_calls: Dict[str, Dict[str, Any]] = {}
+
+    def reset_buffers(self) -> None:
+        """
+        Reset all internal buffers to prevent memory leaks.
+
+        Should be called:
+        - At the start of a new session (session_configured)
+        - After task completion
+        - When switching contexts
+        """
+        self.message_buffer.clear()
+        self.reasoning_buffer.clear()
+        self.current_tool_calls.clear()
 
     def translate(self, code_event: Dict[str, Any]) -> List[OpenAIEvent]:
         """
@@ -134,7 +148,10 @@ class CodeEventTranslator:
 
     def _handle_session_configured(self, msg: Dict[str, Any]) -> List[OpenAIEvent]:
         """Handle session_configured → thread.created"""
-        self.session_id = msg.get("conversation_id", str(int(time.time() * 1000)))
+        self.session_id = msg.get("conversation_id", uuid.uuid4().hex)
+
+        # Reset buffers at start of new session
+        self.reset_buffers()
 
         return [
             OpenAIEvent(
@@ -150,7 +167,7 @@ class CodeEventTranslator:
 
     def _handle_task_started(self, msg: Dict[str, Any]) -> List[OpenAIEvent]:
         """Handle task_started → thread.run.created"""
-        self.run_id = f"run_{int(time.time() * 1000)}"
+        self.run_id = f"run_{uuid.uuid4().hex}"
 
         return [
             OpenAIEvent(
@@ -173,7 +190,6 @@ class CodeEventTranslator:
         # Flush any buffered message content
         if self.message_buffer:
             events.append(self._create_message_event("".join(self.message_buffer), True))
-            self.message_buffer.clear()
 
         # Send run completed
         events.append(
@@ -197,6 +213,9 @@ class CodeEventTranslator:
             )
         )
 
+        # Reset all buffers after task completion
+        self.reset_buffers()
+
         return events
 
     def _handle_agent_message(self, msg: Dict[str, Any]) -> List[OpenAIEvent]:
@@ -219,7 +238,7 @@ class CodeEventTranslator:
             OpenAIEvent(
                 EventType.THREAD_MESSAGE_DELTA,
                 {
-                    "id": f"msg_{int(time.time() * 1000)}",
+                    "id": f"msg_{uuid.uuid4().hex}",
                     "object": "thread.message.delta",
                     "delta": {
                         "role": "assistant",
@@ -249,7 +268,7 @@ class CodeEventTranslator:
 
     def _handle_exec_begin(self, msg: Dict[str, Any]) -> List[OpenAIEvent]:
         """Handle exec_command_begin → function_call start"""
-        call_id = msg.get("call_id", str(int(time.time() * 1000)))
+        call_id = msg.get("call_id", uuid.uuid4().hex)
         command = msg.get("command", "")
 
         self.current_tool_calls[call_id] = {
@@ -297,7 +316,7 @@ class CodeEventTranslator:
 
     def _handle_patch_begin(self, msg: Dict[str, Any]) -> List[OpenAIEvent]:
         """Handle patch_apply_begin → file edit function call"""
-        call_id = msg.get("call_id", str(int(time.time() * 1000)))
+        call_id = msg.get("call_id", uuid.uuid4().hex)
         changes = msg.get("changes", [])
 
         self.current_tool_calls[call_id] = {
@@ -334,7 +353,7 @@ class CodeEventTranslator:
 
     def _handle_mcp_begin(self, msg: Dict[str, Any]) -> List[OpenAIEvent]:
         """Handle MCP tool call begin"""
-        call_id = msg.get("call_id", str(int(time.time() * 1000)))
+        call_id = msg.get("call_id", uuid.uuid4().hex)
         invocation = msg.get("invocation", {})
 
         self.current_tool_calls[call_id] = {
@@ -371,7 +390,7 @@ class CodeEventTranslator:
 
     def _handle_web_search_begin(self, msg: Dict[str, Any]) -> List[OpenAIEvent]:
         """Handle web search begin"""
-        call_id = msg.get("call_id", str(int(time.time() * 1000)))
+        call_id = msg.get("call_id", uuid.uuid4().hex)
 
         self.current_tool_calls[call_id] = {
             "id": call_id,
@@ -409,7 +428,7 @@ class CodeEventTranslator:
             OpenAIEvent(
                 EventType.THREAD_MESSAGE_DELTA,
                 {
-                    "id": f"msg_{int(time.time() * 1000)}",
+                    "id": f"msg_{uuid.uuid4().hex}",
                     "object": "thread.message.delta",
                     "delta": {},
                     "usage": {
@@ -466,7 +485,7 @@ class CodeEventTranslator:
         return OpenAIEvent(
             event_type,
             {
-                "id": f"msg_{int(time.time() * 1000)}",
+                "id": f"msg_{uuid.uuid4().hex}",
                 "object": f"thread.message.{('completed' if is_final else 'delta')}",
                 "delta": {
                     "role": "assistant",

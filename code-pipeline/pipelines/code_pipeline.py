@@ -122,6 +122,16 @@ class Pipeline:
         async with self.session_lock:
             for session_id, session_data in self.sessions.items():
                 try:
+                    # Cancel background event reader task
+                    event_reader_task = session_data.get("event_reader_task")
+                    if event_reader_task and not event_reader_task.done():
+                        event_reader_task.cancel()
+                        try:
+                            await event_reader_task
+                        except asyncio.CancelledError:
+                            pass
+
+                    # Stop Code server
                     manager: CodeServerManager = session_data.get("manager")
                     if manager and manager.is_running():
                         logger.info(f"Stopping session {session_id}")
@@ -159,14 +169,16 @@ class Pipeline:
         # Extract user message
         messages = body.get("messages", [])
         if not messages:
-            return "Error: No messages provided"
+            yield self._create_simple_response("Error: No messages provided")
+            return
 
         # Get the latest user message
         last_message = messages[-1]
         user_input = last_message.get("content", "")
 
         if not user_input:
-            return "Error: Empty message"
+            yield self._create_simple_response("Error: Empty message")
+            return
 
         # Get or create session for this user
         user_id = __user__.get("id") if __user__ else "default"
@@ -181,26 +193,29 @@ class Pipeline:
 
             # Check for slash commands
             if user_input.strip().startswith("/"):
-                return self._handle_slash_command(
+                async for event in self._handle_slash_command(
                     user_input,
                     manager,
                     translator,
                     conversation_id,
                     __event_emitter__
-                )
+                ):
+                    yield event
+                return
 
             # Send regular message
-            return self._handle_chat(
+            async for event in self._handle_chat(
                 user_input,
                 manager,
                 translator,
                 conversation_id,
                 __event_emitter__
-            )
+            ):
+                yield event
 
         except Exception as e:
             logger.error(f"Pipeline error: {e}", exc_info=True)
-            return f"Error: {str(e)}"
+            yield self._create_simple_response(f"Error: {str(e)}")
 
     async def _get_or_create_session(
         self,
@@ -238,6 +253,11 @@ class Pipeline:
             # Start the server
             await manager.start()
 
+            # CRITICAL: Start background event reader BEFORE making any JSON-RPC requests
+            # This task continuously reads stdout and resolves pending request futures
+            # Without this, initialize_session() and new_conversation() will deadlock!
+            event_reader_task = asyncio.create_task(self._background_event_reader(manager))
+
             # Initialize Code session
             await manager.initialize_session({
                 "name": "open-webui-pipeline",
@@ -257,7 +277,8 @@ class Pipeline:
                 "translator": translator,
                 "conversation_id": conversation_id,
                 "user_id": user_id,
-                "working_dir": working_dir
+                "working_dir": working_dir,
+                "event_reader_task": event_reader_task  # Keep reference to cancel on shutdown
             }
 
             self.sessions[session_id] = session_data
@@ -386,6 +407,33 @@ class Pipeline:
             event_emitter
         ):
             yield event
+
+    async def _background_event_reader(self, manager: CodeServerManager) -> None:
+        """
+        Background task that continuously reads events from Code app-server.
+
+        This is CRITICAL for resolving JSON-RPC request futures. Without this,
+        send_request() calls will deadlock because nothing is reading stdout.
+
+        This task:
+        1. Continuously reads from manager.stream_events()
+        2. stream_events() internally resolves pending request futures
+        3. Discards notification events (they're handled separately in _handle_chat)
+        """
+        try:
+            logger.info("Starting background event reader")
+            async for event in manager.stream_events():
+                # Events are yielded by stream_events, but we don't need to process them here
+                # The important part is that stream_events() is running and resolving futures
+                # Notification events will be handled when _handle_chat iterates stream_events
+                pass
+        except asyncio.CancelledError:
+            logger.info("Background event reader cancelled")
+            raise
+        except Exception as e:
+            logger.error(f"Background event reader error: {e}", exc_info=True)
+        finally:
+            logger.info("Background event reader stopped")
 
     def _create_simple_response(self, text: str) -> str:
         """Create a simple text response in SSE format"""

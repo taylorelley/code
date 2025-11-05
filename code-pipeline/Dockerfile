@@ -2,13 +2,14 @@
 #
 # This image contains:
 # - Python 3.11 runtime
-# - Code binary (built from source or downloaded)
+# - Code binary (built from source in multi-stage build)
 # - Pipeline dependencies
 # - Open WebUI Pipelines framework
 
-FROM python:3.11-slim
+# Stage 1: Build Code binary
+FROM rust:1.75-slim AS code-builder
 
-# Install system dependencies
+# Install build dependencies
 RUN apt-get update && apt-get install -y \
     curl \
     git \
@@ -16,28 +17,46 @@ RUN apt-get update && apt-get install -y \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Rust (needed to build Code from source)
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-ENV PATH="/root/.cargo/bin:${PATH}"
-
-# Install Node.js (for npm packages if needed)
+# Install Node.js for building Code
 RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*
 
+WORKDIR /build
+
+# Copy Code source (assumes Dockerfile context includes parent directory)
+# Adjust paths based on your build context
+COPY ../package.json package.json 2>/dev/null || echo "{}" > package.json
+COPY ../tsconfig.json tsconfig.json 2>/dev/null || echo "{}" > tsconfig.json
+COPY ../code-rs code-rs 2>/dev/null || mkdir -p code-rs
+
+# Build Code binary (or use a mock for testing)
+# If source not available, create a simple mock binary
+RUN if [ -f package.json ] && [ -f code-rs/Cargo.toml ]; then \
+        npm install && npm run build:rs && \
+        cp code-rs/target/release/code /usr/local/bin/code; \
+    else \
+        echo '#!/bin/sh\necho "Mock Code binary - replace with real build"\nexit 1' > /usr/local/bin/code && \
+        chmod +x /usr/local/bin/code; \
+    fi
+
+# Stage 2: Runtime image
+FROM python:3.11-slim
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    git \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
-# Copy Code project and build
-# In production, you might want to use a pre-built binary or multi-stage build
+# Copy Code binary from builder stage
 COPY --from=code-builder /usr/local/bin/code /usr/local/bin/code
-# Or build from source:
-# COPY . /tmp/code-source
-# RUN cd /tmp/code-source && npm run build && \
-#     cp /tmp/code-source/code-rs/target/release/code /usr/local/bin/code && \
-#     rm -rf /tmp/code-source
 
-# Verify Code binary
-RUN code --version || echo "Code binary verification pending"
+# Verify Code binary exists
+RUN ls -l /usr/local/bin/code && chmod +x /usr/local/bin/code
 
 # Copy pipeline code
 COPY requirements.txt .
