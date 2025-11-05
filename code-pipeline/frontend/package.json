@@ -1,7 +1,7 @@
 {
   "name": "@code-pipeline/frontend",
-  "version": "0.2.0",
-  "description": "Code Pipeline frontend components for Open WebUI integration",
+  "version": "0.3.0",
+  "description": "Code Pipeline frontend components for Open WebUI integration - Phase 3 complete with advanced features",
   "type": "module",
   "scripts": {
     "check": "svelte-check --tsconfig ./tsconfig.json",
