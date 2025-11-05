@@ -181,7 +181,7 @@ class Pipeline:
 
             # Check for slash commands
             if user_input.strip().startswith("/"):
-                return await self._handle_slash_command(
+                return self._handle_slash_command(
                     user_input,
                     manager,
                     translator,
@@ -190,7 +190,7 @@ class Pipeline:
                 )
 
             # Send regular message
-            return await self._handle_chat(
+            return self._handle_chat(
                 user_input,
                 manager,
                 translator,
