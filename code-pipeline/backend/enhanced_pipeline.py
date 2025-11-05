@@ -12,16 +12,11 @@ Extends the base pipeline with:
 import asyncio
 import base64
 import logging
-import sys
 from typing import Dict, Any, Optional, AsyncIterator
-from pathlib import Path
 
-# Add parent directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-from pipelines.code_pipeline import Pipeline as BasePipeline
-from backend.websocket_handler import ws_manager
-from utils.event_translator import CodeEventTranslator
+from ..pipelines.code_pipeline import Pipeline as BasePipeline
+from .websocket_handler import ws_manager
+from ..utils.event_translator import CodeEventTranslator
 
 logger = logging.getLogger(__name__)
 

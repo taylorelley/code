@@ -23,16 +23,11 @@ Usage:
 import asyncio
 import logging
 import os
-import sys
 from typing import Dict, Any, Optional, List, Union, AsyncIterator, Generator
-from pathlib import Path
-
-# Add parent directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from pydantic import BaseModel, Field
-from utils.event_translator import CodeEventTranslator, OpenAIEvent
-from utils.subprocess_manager import CodeServerManager
+from ..utils.event_translator import CodeEventTranslator, OpenAIEvent
+from ..utils.subprocess_manager import CodeServerManager
 
 logging.basicConfig(
     level=logging.INFO,
