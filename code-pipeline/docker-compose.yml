@@ -47,6 +47,7 @@ services:
       - NET_ADMIN  # Required for network sysctl operations
     security_opt:
       - apparmor:unconfined  # Disable AppArmor to allow sysctl modifications
+      - seccomp:unconfined   # Disable seccomp to allow sysctl syscalls
     networks:
       - webui-network
 
