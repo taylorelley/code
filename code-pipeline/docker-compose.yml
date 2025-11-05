@@ -9,11 +9,13 @@ services:
       - open-webui-data:/app/backend/data
       - ./pipelines:/app/backend/pipelines  # Mount our Code pipeline
     environment:
-      # Point to Code pipeline
-      - OPENAI_API_BASE_URLS=http://code-pipeline:9099/v1
+      # Point to Code pipeline (using host.docker.internal since code-pipeline uses host networking)
+      - OPENAI_API_BASE_URLS=http://host.docker.internal:9099/v1
       - OPENAI_API_KEYS=dummy-key  # Code pipeline doesn't require auth
       - ENABLE_SIGNUP=true
       - WEBUI_NAME=Code WebUI
+    extra_hosts:
+      - "host.docker.internal:host-gateway"  # Allow container to reach host
     depends_on:
       - code-pipeline
     networks:
@@ -25,14 +27,13 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: code-pipeline
-    ports:
-      - "9099:9099"
+    network_mode: host  # Use host networking to bypass container network initialization
     volumes:
       - code-workspace:/data/code-workspace
       - ./pipelines:/app/pipelines  # For development
       - ./utils:/app/utils  # For development
       # Mount Docker socket for sandboxing (optional but recommended)
-      - /var/run/docker.sock:/var/run/docker.sock
+      # - /var/run/docker.sock:/var/run/docker.sock  # Temporarily disabled
     environment:
       - CODE_BINARY_PATH=/usr/local/bin/code
       - CODE_WORKING_DIR=/data/code-workspace
@@ -41,9 +42,7 @@ services:
       # Optional: API keys for Code's LLM providers
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
-    privileged: true  # Required to allow sysctl modifications during container init
-    networks:
-      - webui-network
+    # privileged: true  # Not needed with host networking
 
 volumes:
   open-webui-data:
