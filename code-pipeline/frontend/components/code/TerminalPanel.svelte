@@ -139,7 +139,7 @@
   function clear() {
     if (terminal) {
       terminal.clear();
-      lastOutputIndex = 0;
+      lastOutputIndex = terminalSession?.output.length ?? 0;
     }
   }
 
