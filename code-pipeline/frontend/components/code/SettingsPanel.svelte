@@ -144,6 +144,22 @@
   // Derived model list
   $: availableModels = modelOptions[$settings.model.provider] || [];
 
+  // Validate and update model name when provider changes
+  $: if (availableModels.length > 0) {
+    const currentModelExists = availableModels.some(
+      (model) => model.value === $settings.model.name
+    );
+    if (!currentModelExists) {
+      settings.update((s) => ({
+        ...s,
+        model: {
+          ...s.model,
+          name: availableModels[0].value,
+        },
+      }));
+    }
+  }
+
   // New MCP server form
   let newMCPServer = {
     name: '',
@@ -161,6 +177,7 @@
       }
     } catch (error) {
       console.error('Failed to load settings:', error);
+      showNotification('Failed to load settings — showing defaults', 'warning');
     }
   });
 
@@ -176,11 +193,31 @@
       if (response.ok) {
         showNotification('Settings saved successfully', 'success');
       } else {
-        showNotification('Failed to save settings', 'error');
+        // Extract error details from server response
+        let errorMessage = 'Failed to save settings';
+        try {
+          const contentType = response.headers.get('content-type');
+          if (contentType && contentType.includes('application/json')) {
+            const errorData = await response.json();
+            errorMessage = errorData.message || errorData.error || errorMessage;
+          } else {
+            const errorText = await response.text();
+            if (errorText) {
+              errorMessage = errorText.substring(0, 100); // Trim long messages
+            }
+          }
+        } catch (parseError) {
+          console.error('Failed to parse error response:', parseError);
+        }
+        console.error('Save settings failed:', errorMessage);
+        showNotification(errorMessage, 'error');
       }
     } catch (error) {
       console.error('Failed to save settings:', error);
-      showNotification('Failed to save settings', 'error');
+      const errorMessage = error.message
+        ? `Failed to save settings: ${error.message}`
+        : 'Failed to save settings';
+      showNotification(errorMessage, 'error');
     }
   }
 
@@ -197,10 +234,13 @@
       command: newMCPServer.command.split(' ').filter((s) => s.length > 0),
       env: newMCPServer.env
         ? Object.fromEntries(
-            newMCPServer.env.split('\n').map((line) => {
-              const [key, ...value] = line.split('=');
-              return [key.trim(), value.join('=').trim()];
-            })
+            newMCPServer.env
+              .split('\n')
+              .filter((line) => line.trim().length > 0)
+              .map((line) => {
+                const [key, ...value] = line.split('=');
+                return [key.trim(), value.join('=').trim()];
+              })
           )
         : {},
       enabled: true,
