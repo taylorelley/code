@@ -90,8 +90,15 @@ class EnhancedPipeline(BasePipeline):
 
         This processes Code events and sends appropriate WebSocket messages
         """
-        msg = code_event.get("msg", {})
+        if "method" in code_event:
+            params = code_event.get("params", {}) or {}
+            msg = params.get("msg", {}) or {}
+        else:
+            msg = code_event.get("msg", {}) or {}
+
         event_type = msg.get("type")
+        if not event_type:
+            return
 
         # Browser screenshot
         if event_type == "browser_screenshot_update":
@@ -114,7 +121,6 @@ class EnhancedPipeline(BasePipeline):
                            "patch_apply_begin", "patch_apply_end",
                            "mcp_tool_call_begin", "mcp_tool_call_end"]:
             await self._handle_tool_execution(session_id, msg)
-
     async def _handle_browser_screenshot(
         self,
         session_id: str,
