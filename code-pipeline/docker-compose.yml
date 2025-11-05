@@ -45,6 +45,8 @@ services:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
     cap_add:
       - NET_ADMIN  # Required for network sysctl operations
+    security_opt:
+      - apparmor:unconfined  # Disable AppArmor to allow sysctl modifications
     networks:
       - webui-network
 
