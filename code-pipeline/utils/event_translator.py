@@ -18,8 +18,11 @@ Event Mapping Reference:
 from typing import Dict, Any, Optional, List, Union
 from enum import Enum
 import json
+import logging
 import time
 import uuid
+
+logger = logging.getLogger(__name__)
 
 
 class EventType(str, Enum):
@@ -239,6 +242,22 @@ class CodeEventTranslator:
             total_chars = sum(len(s) for s in self.message_buffer)
             if total_chars + len(delta) < self.MAX_BUFFER_CHARS:
                 self.message_buffer.append(delta)
+            else:
+                # Log when delta is dropped due to character limit
+                logger.warning(
+                    f"Message buffer character limit reached, dropping delta. "
+                    f"Buffer: {len(self.message_buffer)} items, {total_chars} chars; "
+                    f"Delta: {len(delta)} chars; "
+                    f"Limits: {self.MAX_BUFFER_SIZE} items, {self.MAX_BUFFER_CHARS} chars"
+                )
+        else:
+            # Log when delta is dropped due to item count limit
+            logger.warning(
+                f"Message buffer size limit reached, dropping delta. "
+                f"Buffer: {len(self.message_buffer)} items; "
+                f"Delta: {len(delta)} chars; "
+                f"Limits: {self.MAX_BUFFER_SIZE} items, {self.MAX_BUFFER_CHARS} chars"
+            )
 
         return [self._create_message_event(delta, is_final=False)]
 
@@ -278,6 +297,22 @@ class CodeEventTranslator:
             total_chars = sum(len(s) for s in self.reasoning_buffer)
             if total_chars + len(delta) < self.MAX_BUFFER_CHARS:
                 self.reasoning_buffer.append(delta)
+            else:
+                # Log when delta is dropped due to character limit
+                logger.warning(
+                    f"Reasoning buffer character limit reached, dropping delta. "
+                    f"Buffer: {len(self.reasoning_buffer)} items, {total_chars} chars; "
+                    f"Delta: {len(delta)} chars; "
+                    f"Limits: {self.MAX_BUFFER_SIZE} items, {self.MAX_BUFFER_CHARS} chars"
+                )
+        else:
+            # Log when delta is dropped due to item count limit
+            logger.warning(
+                f"Reasoning buffer size limit reached, dropping delta. "
+                f"Buffer: {len(self.reasoning_buffer)} items; "
+                f"Delta: {len(delta)} chars; "
+                f"Limits: {self.MAX_BUFFER_SIZE} items, {self.MAX_BUFFER_CHARS} chars"
+            )
 
         # For now, accumulate and send with regular message
         # In production, could send as separate metadata stream
