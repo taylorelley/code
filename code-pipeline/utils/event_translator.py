@@ -72,6 +72,10 @@ class OpenAIEvent:
 class CodeEventTranslator:
     """Translates Code events to OpenAI-compatible format"""
 
+    # Maximum buffer sizes to prevent memory leaks
+    MAX_BUFFER_SIZE = 10000  # Maximum items in buffers
+    MAX_BUFFER_CHARS = 1_000_000  # Maximum characters in message buffer
+
     def __init__(self):
         self.session_id: Optional[str] = None
         self.run_id: Optional[str] = None
@@ -169,6 +173,9 @@ class CodeEventTranslator:
         """Handle task_started → thread.run.created"""
         self.run_id = f"run_{uuid.uuid4().hex}"
 
+        # Clear buffers at start of new task to prevent memory leaks
+        self.reset_buffers()
+
         return [
             OpenAIEvent(
                 EventType.THREAD_RUN_CREATED,
@@ -226,7 +233,12 @@ class CodeEventTranslator:
     def _handle_agent_message_delta(self, msg: Dict[str, Any]) -> List[OpenAIEvent]:
         """Handle agent_message_delta → streaming delta"""
         delta = msg.get("delta", "")
-        self.message_buffer.append(delta)
+
+        # Enforce buffer size limits to prevent memory leaks
+        if len(self.message_buffer) < self.MAX_BUFFER_SIZE:
+            total_chars = sum(len(s) for s in self.message_buffer)
+            if total_chars + len(delta) < self.MAX_BUFFER_CHARS:
+                self.message_buffer.append(delta)
 
         return [self._create_message_event(delta, is_final=False)]
 
@@ -260,7 +272,12 @@ class CodeEventTranslator:
     def _handle_agent_reasoning_delta(self, msg: Dict[str, Any]) -> List[OpenAIEvent]:
         """Handle streaming reasoning"""
         delta = msg.get("delta", "")
-        self.reasoning_buffer.append(delta)
+
+        # Enforce buffer size limits to prevent memory leaks
+        if len(self.reasoning_buffer) < self.MAX_BUFFER_SIZE:
+            total_chars = sum(len(s) for s in self.reasoning_buffer)
+            if total_chars + len(delta) < self.MAX_BUFFER_CHARS:
+                self.reasoning_buffer.append(delta)
 
         # For now, accumulate and send with regular message
         # In production, could send as separate metadata stream

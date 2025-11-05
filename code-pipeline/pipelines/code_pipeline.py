@@ -190,6 +190,7 @@ class Pipeline:
             manager: CodeServerManager = session_data["manager"]
             translator: CodeEventTranslator = session_data["translator"]
             conversation_id: str = session_data["conversation_id"]
+            event_queue: asyncio.Queue = session_data["event_queue"]
 
             # Check for slash commands
             if user_input.strip().startswith("/"):
@@ -198,6 +199,7 @@ class Pipeline:
                     manager,
                     translator,
                     conversation_id,
+                    event_queue,
                     __event_emitter__
                 ):
                     yield event
@@ -209,6 +211,7 @@ class Pipeline:
                 manager,
                 translator,
                 conversation_id,
+                event_queue,
                 __event_emitter__
             ):
                 yield event
@@ -253,10 +256,16 @@ class Pipeline:
             # Start the server
             await manager.start()
 
+            # Create event queue for distributing events to handlers
+            # This queue will be populated by a single background reader
+            event_queue = asyncio.Queue()
+
             # CRITICAL: Start background event reader BEFORE making any JSON-RPC requests
-            # This task continuously reads stdout and resolves pending request futures
+            # This single task reads stdout and distributes events via queue
             # Without this, initialize_session() and new_conversation() will deadlock!
-            event_reader_task = asyncio.create_task(self._background_event_reader(manager))
+            event_reader_task = asyncio.create_task(
+                self._background_event_reader(manager, event_queue)
+            )
 
             # Initialize Code session
             await manager.initialize_session({
@@ -278,6 +287,7 @@ class Pipeline:
                 "conversation_id": conversation_id,
                 "user_id": user_id,
                 "working_dir": working_dir,
+                "event_queue": event_queue,  # Queue for event distribution
                 "event_reader_task": event_reader_task  # Keep reference to cancel on shutdown
             }
 
@@ -296,6 +306,7 @@ class Pipeline:
         manager: CodeServerManager,
         translator: CodeEventTranslator,
         conversation_id: str,
+        event_queue: asyncio.Queue,
         event_emitter: Any
     ) -> AsyncIterator[str]:
         """
@@ -306,6 +317,7 @@ class Pipeline:
             manager: Code server manager
             translator: Event translator
             conversation_id: Code conversation ID
+            event_queue: Queue for receiving events from background reader
             event_emitter: Event emitter for status updates
 
         Yields:
@@ -316,8 +328,10 @@ class Pipeline:
         # Send user message to Code
         await manager.send_user_message(conversation_id, user_input)
 
-        # Stream events from Code and translate to OpenAI format
-        async for code_event in manager.stream_events():
+        # Stream events from queue (populated by background reader)
+        while True:
+            code_event = await event_queue.get()
+
             # Translate Code event to OpenAI format
             openai_events = translator.translate(code_event)
 
@@ -347,6 +361,7 @@ class Pipeline:
         manager: CodeServerManager,
         translator: CodeEventTranslator,
         conversation_id: str,
+        event_queue: asyncio.Queue,
         event_emitter: Any
     ) -> AsyncIterator[str]:
         """
@@ -357,6 +372,7 @@ class Pipeline:
             manager: Code server manager
             translator: Event translator
             conversation_id: Code conversation ID
+            event_queue: Queue for receiving events from background reader
             event_emitter: Event emitter
 
         Yields:
@@ -404,29 +420,33 @@ class Pipeline:
             manager,
             translator,
             conversation_id,
+            event_queue,
             event_emitter
         ):
             yield event
 
-    async def _background_event_reader(self, manager: CodeServerManager) -> None:
+    async def _background_event_reader(
+        self,
+        manager: CodeServerManager,
+        event_queue: asyncio.Queue
+    ) -> None:
         """
         Background task that continuously reads events from Code app-server.
 
-        This is CRITICAL for resolving JSON-RPC request futures. Without this,
-        send_request() calls will deadlock because nothing is reading stdout.
+        This is CRITICAL for the pipeline to function. This is the ONLY task
+        that reads from stdout, preventing race conditions.
 
         This task:
-        1. Continuously reads from manager.stream_events()
-        2. stream_events() internally resolves pending request futures
-        3. Discards notification events (they're handled separately in _handle_chat)
+        1. Continuously reads from manager.stream_events() (which also resolves JSON-RPC futures)
+        2. Pushes notification events to the queue for handlers to consume
+        3. Ensures single-reader architecture (no race conditions)
         """
         try:
             logger.info("Starting background event reader")
             async for event in manager.stream_events():
-                # Events are yielded by stream_events, but we don't need to process them here
-                # The important part is that stream_events() is running and resolving futures
-                # Notification events will be handled when _handle_chat iterates stream_events
-                pass
+                # Push event to queue for handlers to consume
+                # This prevents race conditions by having a single reader
+                await event_queue.put(event)
         except asyncio.CancelledError:
             logger.info("Background event reader cancelled")
             raise
