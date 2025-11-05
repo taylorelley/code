@@ -14,13 +14,20 @@
 
   let selectedScreenshot: BrowserScreenshot | null = null;
   let showHistory = false;
+  let hasManualSelection = false;
 
-  $: if ($latestScreenshot && !selectedScreenshot) {
+  $: if ($latestScreenshot && (!hasManualSelection || selectedScreenshot?.id === $latestScreenshot.id)) {
     selectedScreenshot = $latestScreenshot;
+  }
+
+  $: if (!$currentSession) {
+    hasManualSelection = false;
+    selectedScreenshot = null;
   }
 
   function selectScreenshot(screenshot: BrowserScreenshot) {
     selectedScreenshot = screenshot;
+    hasManualSelection = screenshot.id !== $latestScreenshot?.id;
   }
 
   function formatTimestamp(timestamp: string): string {
