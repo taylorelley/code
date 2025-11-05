@@ -130,7 +130,11 @@ class EnhancedPipeline(BasePipeline):
         screenshot = msg.get("screenshot", {})
 
         # Extract screenshot data
-        image_data = screenshot.get("data")  # May be base64 or file path
+        image_data = screenshot.get("data")  # May be base64 data URL or file path
+        image_path = screenshot.get("path")
+
+        if not image_data and image_path:
+            image_data = image_path
 
         # If file path, read and encode
         if image_data and not image_data.startswith("data:"):
@@ -141,6 +145,10 @@ class EnhancedPipeline(BasePipeline):
             except Exception as e:
                 logger.error(f"Error reading screenshot: {e}")
                 return
+
+        if not image_data:
+            logger.warning("Dropping browser screenshot with no data or path")
+            return
 
         # Extract metadata
         metadata = {
@@ -156,7 +164,6 @@ class EnhancedPipeline(BasePipeline):
             image_data,
             metadata
         )
-
     async def _handle_terminal_output(
         self,
         session_id: str,
