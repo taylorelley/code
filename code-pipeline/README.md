@@ -32,18 +32,18 @@ Transform [Open WebUI](https://github.com/open-webui/open-webui) into a powerful
 
 ## 📋 Table of Contents
 
-- [Quick Start](#-quick-start)
-- [Installation](#-installation)
+- [Quick Start](#🚀-quick-start)
+- [Installation](#📦-installation)
   - [Docker Compose (Recommended)](#docker-compose-recommended)
   - [Manual Installation](#manual-installation)
   - [Development Setup](#development-setup)
-- [Architecture](#-architecture)
-- [Configuration](#-configuration)
-- [Usage Guide](#-usage-guide)
-- [Implementation Details](#-implementation-details)
-- [Troubleshooting](#-troubleshooting)
-- [Development](#-development)
-- [Contributing](#-contributing)
+- [Architecture](#🏗️-architecture)
+- [Configuration](#⚙️-configuration)
+- [Usage Guide](#📖-usage-guide)
+- [Implementation Details](#🔬-implementation-details)
+- [Troubleshooting](#🐛-troubleshooting)
+- [Development](#🛠️-development)
+- [Contributing](#🤝-contributing)
 
 ---
 
