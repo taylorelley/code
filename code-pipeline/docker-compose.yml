@@ -3,24 +3,18 @@ services:
   open-webui:
     image: ghcr.io/open-webui/open-webui:main
     container_name: open-webui
-    ports:
-      - "3000:8080"
+    network_mode: host  # Use host networking to bypass sysctl permission error
     volumes:
       - open-webui-data:/app/backend/data
       - ./pipelines:/app/backend/pipelines  # Mount our Code pipeline
     environment:
-      # Point to Code pipeline (using host.docker.internal since code-pipeline uses host networking)
-      - OPENAI_API_BASE_URLS=http://host.docker.internal:9099/v1
+      # Point to Code pipeline (both services use host networking)
+      - OPENAI_API_BASE_URLS=http://localhost:9099/v1
       - OPENAI_API_KEYS=dummy-key  # Code pipeline doesn't require auth
       - ENABLE_SIGNUP=true
       - WEBUI_NAME=Code WebUI
-    extra_hosts:
-      - "host.docker.internal:host-gateway"  # Allow container to reach host
     depends_on:
       - code-pipeline
-    privileged: true  # Required to bypass sysctl permission error on this Docker host
-    networks:
-      - webui-network
 
   # Code Pipeline service
   code-pipeline:
@@ -50,7 +44,3 @@ volumes:
     driver: local
   code-workspace:
     driver: local
-
-networks:
-  webui-network:
-    driver: bridge
