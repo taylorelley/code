@@ -85,6 +85,9 @@ class CodeEventTranslator:
         self.message_buffer: List[str] = []
         self.reasoning_buffer: List[str] = []
         self.current_tool_calls: Dict[str, Dict[str, Any]] = {}
+        # Track whether truncation markers have been added
+        self.message_buffer_truncated: bool = False
+        self.reasoning_buffer_truncated: bool = False
 
     def reset_buffers(self) -> None:
         """
@@ -98,6 +101,9 @@ class CodeEventTranslator:
         self.message_buffer.clear()
         self.reasoning_buffer.clear()
         self.current_tool_calls.clear()
+        # Reset truncation flags
+        self.message_buffer_truncated = False
+        self.reasoning_buffer_truncated = False
 
     def translate(self, code_event: Dict[str, Any]) -> List[OpenAIEvent]:
         """
@@ -243,21 +249,40 @@ class CodeEventTranslator:
             if total_chars + len(delta) < self.MAX_BUFFER_CHARS:
                 self.message_buffer.append(delta)
             else:
-                # Log when delta is dropped due to character limit
+                # Buffer character limit exceeded
+                if not self.message_buffer_truncated:
+                    # Log and add truncation marker (only once)
+                    logger.warning(
+                        f"Message buffer character limit reached, dropping delta. "
+                        f"Buffer: {len(self.message_buffer)} items, {total_chars} chars; "
+                        f"Delta: {len(delta)} chars; "
+                        f"Limits: {self.MAX_BUFFER_SIZE} items, {self.MAX_BUFFER_CHARS} chars"
+                    )
+                    truncation_marker = "\n\n[... content truncated due to size limits ...]"
+                    self.message_buffer.append(truncation_marker)
+                    self.message_buffer_truncated = True
+                    # Return truncation marker to client
+                    return [self._create_message_event(truncation_marker, is_final=False)]
+        else:
+            # Buffer item count limit exceeded
+            if not self.message_buffer_truncated:
+                # Log and add truncation marker (only once)
                 logger.warning(
-                    f"Message buffer character limit reached, dropping delta. "
-                    f"Buffer: {len(self.message_buffer)} items, {total_chars} chars; "
+                    f"Message buffer size limit reached, dropping delta. "
+                    f"Buffer: {len(self.message_buffer)} items; "
                     f"Delta: {len(delta)} chars; "
                     f"Limits: {self.MAX_BUFFER_SIZE} items, {self.MAX_BUFFER_CHARS} chars"
                 )
-        else:
-            # Log when delta is dropped due to item count limit
-            logger.warning(
-                f"Message buffer size limit reached, dropping delta. "
-                f"Buffer: {len(self.message_buffer)} items; "
-                f"Delta: {len(delta)} chars; "
-                f"Limits: {self.MAX_BUFFER_SIZE} items, {self.MAX_BUFFER_CHARS} chars"
-            )
+                truncation_marker = "\n\n[... content truncated due to size limits ...]"
+                self.message_buffer.append(truncation_marker)
+                self.message_buffer_truncated = True
+                # Return truncation marker to client
+                return [self._create_message_event(truncation_marker, is_final=False)]
+
+        # Don't send dropped deltas to client (but do send the first truncation marker above)
+        if self.message_buffer_truncated and delta:
+            # Already truncated, don't send this delta
+            return []
 
         return [self._create_message_event(delta, is_final=False)]
 
@@ -298,21 +323,31 @@ class CodeEventTranslator:
             if total_chars + len(delta) < self.MAX_BUFFER_CHARS:
                 self.reasoning_buffer.append(delta)
             else:
-                # Log when delta is dropped due to character limit
+                # Buffer character limit exceeded
+                if not self.reasoning_buffer_truncated:
+                    # Log and add truncation marker (only once)
+                    logger.warning(
+                        f"Reasoning buffer character limit reached, dropping delta. "
+                        f"Buffer: {len(self.reasoning_buffer)} items, {total_chars} chars; "
+                        f"Delta: {len(delta)} chars; "
+                        f"Limits: {self.MAX_BUFFER_SIZE} items, {self.MAX_BUFFER_CHARS} chars"
+                    )
+                    truncation_marker = "\n\n[... reasoning truncated due to size limits ...]"
+                    self.reasoning_buffer.append(truncation_marker)
+                    self.reasoning_buffer_truncated = True
+        else:
+            # Buffer item count limit exceeded
+            if not self.reasoning_buffer_truncated:
+                # Log and add truncation marker (only once)
                 logger.warning(
-                    f"Reasoning buffer character limit reached, dropping delta. "
-                    f"Buffer: {len(self.reasoning_buffer)} items, {total_chars} chars; "
+                    f"Reasoning buffer size limit reached, dropping delta. "
+                    f"Buffer: {len(self.reasoning_buffer)} items; "
                     f"Delta: {len(delta)} chars; "
                     f"Limits: {self.MAX_BUFFER_SIZE} items, {self.MAX_BUFFER_CHARS} chars"
                 )
-        else:
-            # Log when delta is dropped due to item count limit
-            logger.warning(
-                f"Reasoning buffer size limit reached, dropping delta. "
-                f"Buffer: {len(self.reasoning_buffer)} items; "
-                f"Delta: {len(delta)} chars; "
-                f"Limits: {self.MAX_BUFFER_SIZE} items, {self.MAX_BUFFER_CHARS} chars"
-            )
+                truncation_marker = "\n\n[... reasoning truncated due to size limits ...]"
+                self.reasoning_buffer.append(truncation_marker)
+                self.reasoning_buffer_truncated = True
 
         # For now, accumulate and send with regular message
         # In production, could send as separate metadata stream
