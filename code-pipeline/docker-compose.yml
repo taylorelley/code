@@ -16,10 +16,20 @@ services:
       - OPENAI_API_KEYS=dummy-key  # Code pipeline doesn't require auth
       - ENABLE_SIGNUP=true
       - WEBUI_NAME=Code WebUI
+      # Auto-enable the code pipeline
+      - ENABLE_COMMUNITY_SHARING=false
+      - ENABLE_ADMIN_EXPORT=true
     depends_on:
-      - code-pipeline
+      code-pipeline:
+        condition: service_healthy
     networks:
       - webui-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   # Code Pipeline service
   code-pipeline:
@@ -47,6 +57,12 @@ services:
       - NET_ADMIN  # Required for network sysctl operations
     networks:
       - webui-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9099/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
 volumes:
   open-webui-data:
