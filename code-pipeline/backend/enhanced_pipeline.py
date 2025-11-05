@@ -13,11 +13,10 @@ import asyncio
 import base64
 import logging
 from typing import Dict, Any, Optional, AsyncIterator
-from pathlib import Path
 
-from pipelines.code_pipeline import Pipeline as BasePipeline
-from backend.websocket_handler import ws_manager
-from utils.event_translator import CodeEventTranslator
+from ..pipelines.code_pipeline import Pipeline as BasePipeline
+from .websocket_handler import ws_manager
+from ..utils.event_translator import CodeEventTranslator
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +39,7 @@ class EnhancedPipeline(BasePipeline):
         manager,
         translator: CodeEventTranslator,
         conversation_id: str,
+        event_queue,
         event_emitter: Any
     ) -> AsyncIterator[str]:
         """
@@ -55,8 +55,10 @@ class EnhancedPipeline(BasePipeline):
         # Determine session ID for WebSocket broadcasts
         session_id = f"session_{conversation_id}"
 
-        # Stream events from Code and translate
-        async for code_event in manager.stream_events():
+        # Stream events from queue (populated by background reader)
+        while True:
+            code_event = await event_queue.get()
+
             # Translate to OpenAI format
             openai_events = translator.translate(code_event)
 

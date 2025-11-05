@@ -18,8 +18,11 @@ Event Mapping Reference:
 from typing import Dict, Any, Optional, List, Union
 from enum import Enum
 import json
+import logging
 import time
 import uuid
+
+logger = logging.getLogger(__name__)
 
 
 class EventType(str, Enum):
@@ -72,12 +75,19 @@ class OpenAIEvent:
 class CodeEventTranslator:
     """Translates Code events to OpenAI-compatible format"""
 
+    # Maximum buffer sizes to prevent memory leaks
+    MAX_BUFFER_SIZE = 10000  # Maximum items in buffers
+    MAX_BUFFER_CHARS = 1_000_000  # Maximum characters in message buffer
+
     def __init__(self):
         self.session_id: Optional[str] = None
         self.run_id: Optional[str] = None
         self.message_buffer: List[str] = []
         self.reasoning_buffer: List[str] = []
         self.current_tool_calls: Dict[str, Dict[str, Any]] = {}
+        # Track whether truncation markers have been added
+        self.message_buffer_truncated: bool = False
+        self.reasoning_buffer_truncated: bool = False
 
     def reset_buffers(self) -> None:
         """
@@ -91,6 +101,9 @@ class CodeEventTranslator:
         self.message_buffer.clear()
         self.reasoning_buffer.clear()
         self.current_tool_calls.clear()
+        # Reset truncation flags
+        self.message_buffer_truncated = False
+        self.reasoning_buffer_truncated = False
 
     def translate(self, code_event: Dict[str, Any]) -> List[OpenAIEvent]:
         """
@@ -169,6 +182,9 @@ class CodeEventTranslator:
         """Handle task_started → thread.run.created"""
         self.run_id = f"run_{uuid.uuid4().hex}"
 
+        # Clear buffers at start of new task to prevent memory leaks
+        self.reset_buffers()
+
         return [
             OpenAIEvent(
                 EventType.THREAD_RUN_CREATED,
@@ -226,7 +242,47 @@ class CodeEventTranslator:
     def _handle_agent_message_delta(self, msg: Dict[str, Any]) -> List[OpenAIEvent]:
         """Handle agent_message_delta → streaming delta"""
         delta = msg.get("delta", "")
-        self.message_buffer.append(delta)
+
+        # Enforce buffer size limits to prevent memory leaks
+        if len(self.message_buffer) < self.MAX_BUFFER_SIZE:
+            total_chars = sum(len(s) for s in self.message_buffer)
+            if total_chars + len(delta) < self.MAX_BUFFER_CHARS:
+                self.message_buffer.append(delta)
+            else:
+                # Buffer character limit exceeded
+                if not self.message_buffer_truncated:
+                    # Log and add truncation marker (only once)
+                    logger.warning(
+                        f"Message buffer character limit reached, dropping delta. "
+                        f"Buffer: {len(self.message_buffer)} items, {total_chars} chars; "
+                        f"Delta: {len(delta)} chars; "
+                        f"Limits: {self.MAX_BUFFER_SIZE} items, {self.MAX_BUFFER_CHARS} chars"
+                    )
+                    truncation_marker = "\n\n[... content truncated due to size limits ...]"
+                    self.message_buffer.append(truncation_marker)
+                    self.message_buffer_truncated = True
+                    # Return truncation marker to client
+                    return [self._create_message_event(truncation_marker, is_final=False)]
+        else:
+            # Buffer item count limit exceeded
+            if not self.message_buffer_truncated:
+                # Log and add truncation marker (only once)
+                logger.warning(
+                    f"Message buffer size limit reached, dropping delta. "
+                    f"Buffer: {len(self.message_buffer)} items; "
+                    f"Delta: {len(delta)} chars; "
+                    f"Limits: {self.MAX_BUFFER_SIZE} items, {self.MAX_BUFFER_CHARS} chars"
+                )
+                truncation_marker = "\n\n[... content truncated due to size limits ...]"
+                self.message_buffer.append(truncation_marker)
+                self.message_buffer_truncated = True
+                # Return truncation marker to client
+                return [self._create_message_event(truncation_marker, is_final=False)]
+
+        # Don't send dropped deltas to client (but do send the first truncation marker above)
+        if self.message_buffer_truncated and delta:
+            # Already truncated, don't send this delta
+            return []
 
         return [self._create_message_event(delta, is_final=False)]
 
@@ -260,7 +316,38 @@ class CodeEventTranslator:
     def _handle_agent_reasoning_delta(self, msg: Dict[str, Any]) -> List[OpenAIEvent]:
         """Handle streaming reasoning"""
         delta = msg.get("delta", "")
-        self.reasoning_buffer.append(delta)
+
+        # Enforce buffer size limits to prevent memory leaks
+        if len(self.reasoning_buffer) < self.MAX_BUFFER_SIZE:
+            total_chars = sum(len(s) for s in self.reasoning_buffer)
+            if total_chars + len(delta) < self.MAX_BUFFER_CHARS:
+                self.reasoning_buffer.append(delta)
+            else:
+                # Buffer character limit exceeded
+                if not self.reasoning_buffer_truncated:
+                    # Log and add truncation marker (only once)
+                    logger.warning(
+                        f"Reasoning buffer character limit reached, dropping delta. "
+                        f"Buffer: {len(self.reasoning_buffer)} items, {total_chars} chars; "
+                        f"Delta: {len(delta)} chars; "
+                        f"Limits: {self.MAX_BUFFER_SIZE} items, {self.MAX_BUFFER_CHARS} chars"
+                    )
+                    truncation_marker = "\n\n[... reasoning truncated due to size limits ...]"
+                    self.reasoning_buffer.append(truncation_marker)
+                    self.reasoning_buffer_truncated = True
+        else:
+            # Buffer item count limit exceeded
+            if not self.reasoning_buffer_truncated:
+                # Log and add truncation marker (only once)
+                logger.warning(
+                    f"Reasoning buffer size limit reached, dropping delta. "
+                    f"Buffer: {len(self.reasoning_buffer)} items; "
+                    f"Delta: {len(delta)} chars; "
+                    f"Limits: {self.MAX_BUFFER_SIZE} items, {self.MAX_BUFFER_CHARS} chars"
+                )
+                truncation_marker = "\n\n[... reasoning truncated due to size limits ...]"
+                self.reasoning_buffer.append(truncation_marker)
+                self.reasoning_buffer_truncated = True
 
         # For now, accumulate and send with regular message
         # In production, could send as separate metadata stream
