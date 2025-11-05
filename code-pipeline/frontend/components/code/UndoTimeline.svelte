@@ -35,7 +35,8 @@
   const currentIndex: Writable<number> = writable(-1);
 
   // Derived stores
-  const canUndo = derived(currentIndex, ($currentIndex) => $currentIndex > 0);
+  // Allow undoing from index 0 to -1 (baseline state before first change)
+  const canUndo = derived(currentIndex, ($currentIndex) => $currentIndex >= 0);
   const canRedo = derived(
     [currentIndex, undoStack],
     ([$currentIndex, $undoStack]) => $currentIndex < $undoStack.length - 1
@@ -62,17 +63,23 @@
   });
 
   // Load change history
-  onMount(async () => {
-    try {
-      const response = await fetch(`/api/code/undo-stack/${sessionId}`);
-      if (response.ok) {
-        const data = await response.json();
-        undoStack.set(data.stack || []);
-        currentIndex.set(data.currentIndex ?? -1);
+  onMount(() => {
+    // Async function to load data (don't await it)
+    async function loadData() {
+      try {
+        const response = await fetch(`/api/code/undo-stack/${sessionId}`);
+        if (response.ok) {
+          const data = await response.json();
+          undoStack.set(data.stack || []);
+          currentIndex.set(data.currentIndex ?? -1);
+        }
+      } catch (error) {
+        console.error('Failed to load undo stack:', error);
       }
-    } catch (error) {
-      console.error('Failed to load undo stack:', error);
     }
+
+    // Call async function without awaiting
+    loadData();
 
     // Subscribe to real-time updates via WebSocket
     // (assumes WebSocket connection is managed elsewhere)
@@ -80,6 +87,7 @@
     window.addEventListener('code:undo-performed', handleUndoPerformed);
     window.addEventListener('code:redo-performed', handleRedoPerformed);
 
+    // Return cleanup function directly (not from Promise)
     return () => {
       window.removeEventListener('code:change-recorded', handleChangeRecorded);
       window.removeEventListener('code:undo-performed', handleUndoPerformed);

@@ -453,17 +453,33 @@ test.describe('Code Pipeline E2E Tests', () => {
 
   test.describe('Keyboard Navigation', () => {
     test('should support Ctrl+Z for undo', async ({ page }) => {
-      // Make a change
-      await page.fill('[data-testid="chat-input"]', '/bash echo "test" > test.txt');
-      await page.click('[data-testid="send-button"]');
+      // Get the input element
+      const input = page.locator('[data-testid="chat-input"]');
 
-      await page.waitForTimeout(1000);
+      // Set initial value and record it
+      const originalValue = 'Hello';
+      await input.fill(originalValue);
 
-      // Press Ctrl+Z
+      // Verify original value is set
+      expect(await input.inputValue()).toBe(originalValue);
+
+      // Modify the input (append text)
+      await input.fill(originalValue + ' World');
+
+      // Verify modified value
+      expect(await input.inputValue()).toBe('Hello World');
+
+      // Ensure input has focus
+      await input.focus();
+
+      // Press Ctrl+Z to undo
       await page.keyboard.press('Control+Z');
 
-      // Verify undo happened (implementation specific)
-      // This would check if the undo event was triggered
+      // Wait for any DOM update
+      await page.waitForTimeout(100);
+
+      // Assert the input value reverted to original
+      expect(await input.inputValue()).toBe(originalValue);
     });
 
     test('should support arrow key navigation in file tree', async ({ page }) => {

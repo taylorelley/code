@@ -10,6 +10,7 @@ Handles:
 
 import json
 import os
+import copy
 from pathlib import Path
 from typing import Dict, Any, Optional
 import logging
@@ -215,7 +216,7 @@ class SettingsManager:
     @staticmethod
     def get_default_settings() -> Dict[str, Any]:
         """Get default settings"""
-        return SettingsManager.DEFAULT_SETTINGS.copy()
+        return copy.deepcopy(SettingsManager.DEFAULT_SETTINGS)
 
     async def reset_to_defaults(self) -> bool:
         """

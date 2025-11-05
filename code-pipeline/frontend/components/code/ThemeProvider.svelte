@@ -198,7 +198,7 @@
 
   // Auto-detect mode if not explicitly set
   $: if (!customTheme?.mode && !openWebUITheme?.mode) {
-    activeTheme.mode = prefersDark ? 'dark' : 'light';
+    activeTheme = { ...activeTheme, mode: prefersDark ? 'dark' : 'light' };
   }
 </script>
 

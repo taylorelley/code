@@ -238,7 +238,7 @@
   function showNotification(message: string, type: 'success' | 'error' | 'warning' | 'info') {
     notification = { show: true, message, type };
     setTimeout(() => {
-      notification.show = false;
+      notification = { ...notification, show: false };
     }, 3000);
   }
 
@@ -337,7 +337,7 @@
     <button
       class="tab"
       class:active={activeTab === 'browser'}
-      on:click={() => (activeTab === 'browser')}
+      on:click={() => (activeTab = 'browser')}
       role="tab"
       aria-selected={activeTab === 'browser'}
     >

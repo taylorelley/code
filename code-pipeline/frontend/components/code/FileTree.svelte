@@ -46,6 +46,11 @@
   // Filtered and flattened tree for rendering
   $: flatTree = flattenTree($fileTree, $expandedDirs, searchQuery);
 
+  // Clamp focusedIndex to prevent out-of-bounds access
+  $: if (focusedIndex >= flatTree.length) {
+    focusedIndex = Math.max(0, flatTree.length - 1);
+  }
+
   // Load file tree
   onMount(async () => {
     await loadFileTree();
@@ -135,16 +140,20 @@
 
     function traverse(nodes: FileNode[], depth: number = 0) {
       for (const node of nodes) {
-        // Filter by search query
-        if (query && !matchesSearch(node, query)) {
+        // When searching, check if node or descendants match
+        const matches = !query || matchesSearch(node, query);
+
+        if (!matches) {
           continue;
         }
 
         result.push({ ...node, depth });
 
-        // Add children if directory is expanded
-        if (node.type === 'directory' && node.children && expanded.has(node.path)) {
-          traverse(node.children, depth + 1);
+        // Add children if directory is expanded OR if searching (to show matches in collapsed dirs)
+        if (node.type === 'directory' && node.children) {
+          if (expanded.has(node.path) || query) {
+            traverse(node.children, depth + 1);
+          }
         }
       }
     }

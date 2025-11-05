@@ -296,7 +296,47 @@ class FileTreeService:
         except Exception as e:
             logger.warning(f"Failed to get git status: {e}")
 
-        return status_map
+        # Normalize paths to be relative to workspace_path (not git_repo)
+        return self._normalize_git_paths(status_map)
+
+    def _normalize_git_paths(self, status_map: Dict[str, str]) -> Dict[str, str]:
+        """
+        Normalize git status paths to be relative to workspace_path
+
+        Args:
+            status_map: Git status map with paths relative to git_repo
+
+        Returns:
+            Status map with paths relative to workspace_path
+        """
+        if not self.git_repo or self.git_repo == self.workspace_path:
+            return status_map
+
+        # Get relative path from git_repo to workspace_path
+        try:
+            relative_prefix = str(self.workspace_path.relative_to(self.git_repo))
+            if relative_prefix == ".":
+                return status_map
+
+            # Normalize paths by stripping the prefix
+            normalized_map = {}
+            prefix_with_sep = relative_prefix + "/"
+
+            for file_path, status in status_map.items():
+                if file_path.startswith(prefix_with_sep):
+                    # Strip prefix to get path relative to workspace
+                    normalized_path = file_path[len(prefix_with_sep):]
+                    normalized_map[normalized_path] = status
+                elif file_path == relative_prefix:
+                    # Edge case: file at workspace root
+                    normalized_map["."] = status
+                # Paths outside workspace are not included
+
+            return normalized_map
+        except ValueError:
+            # workspace_path is not relative to git_repo
+            logger.warning("Workspace is not inside git repo")
+            return {}
 
     def _merge_git_status(
         self, nodes: List[Dict[str, Any]], git_status: Dict[str, str]
