@@ -18,6 +18,7 @@ services:
       - "host.docker.internal:host-gateway"  # Allow container to reach host
     depends_on:
       - code-pipeline
+    privileged: true  # Required to bypass sysctl permission error on this Docker host
     networks:
       - webui-network
 
