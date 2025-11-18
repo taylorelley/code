@@ -27,8 +27,8 @@ from pathlib import Path
 from typing import Dict, Any, Optional, List, Union, AsyncIterator, Generator
 
 from pydantic import BaseModel, Field
-from ..utils.event_translator import CodeEventTranslator, OpenAIEvent
-from ..utils.subprocess_manager import CodeServerManager
+from utils.event_translator import CodeEventTranslator, OpenAIEvent
+from utils.subprocess_manager import CodeServerManager
 
 logging.basicConfig(
     level=logging.INFO,
