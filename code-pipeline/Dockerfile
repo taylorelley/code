@@ -46,138 +46,39 @@ RUN if [ -f package.json ]; then \
         echo "npm build completed"; \
     else \
         echo "No package.json found, creating basic Code wrapper..." && \
-        mkdir -p /build/dist && \
-        cat > /build/dist/index.js << 'WRAPPER_EOF'
-#!/usr/bin/env node
-// Basic Code wrapper for app-server mode
-// This is a fallback when the real Code binary is not available
+        mkdir -p /build/dist; \
+    fi
 
+# Create fallback wrapper if no build artifacts exist
+RUN if [ ! -f /build/dist/index.js ]; then \
+        echo "Creating fallback Node.js wrapper..." && \
+        cat > /build/dist/index.js << 'EOF' && \
+#!/usr/bin/env node
 const readline = require('readline');
 const { stdin, stdout } = process;
-
 console.error('Code wrapper starting in app-server mode...');
-
-// JSON-RPC message handler
-const rl = readline.createInterface({
-  input: stdin,
-  output: stdout,
-  terminal: false
-});
-
-let sessionInitialized = false;
-
+const rl = readline.createInterface({ input: stdin, output: stdout, terminal: false });
 rl.on('line', (line) => {
   try {
     const request = JSON.parse(line);
-    console.error(`Received request: ${request.method}`);
-
-    // Handle JSON-RPC requests
+    console.error('Received request: ' + request.method);
     if (request.method === 'initialize') {
-      sessionInitialized = true;
-      const response = {
-        jsonrpc: '2.0',
-        id: request.id,
-        result: {
-          sessionId: 'wrapper-session-' + Date.now(),
-          version: '0.1.0-wrapper'
-        }
-      };
-      console.log(JSON.stringify(response));
+      console.log(JSON.stringify({ jsonrpc: '2.0', id: request.id, result: { sessionId: 'wrapper-' + Date.now(), version: '0.1.0-wrapper' }}));
     } else if (request.method === 'newConversation') {
-      const response = {
-        jsonrpc: '2.0',
-        id: request.id,
-        result: {
-          conversationId: 'conv-' + Date.now()
-        }
-      };
-      console.log(JSON.stringify(response));
+      console.log(JSON.stringify({ jsonrpc: '2.0', id: request.id, result: { conversationId: 'conv-' + Date.now() }}));
     } else if (request.method === 'sendUserMessage') {
-      // Send a basic response
-      const response = {
-        jsonrpc: '2.0',
-        id: request.id,
-        result: { status: 'processing' }
-      };
-      console.log(JSON.stringify(response));
-
-      // Send notification events
-      const events = [
-        {
-          jsonrpc: '2.0',
-          method: 'notification',
-          params: {
-            msg: {
-              type: 'agent_message_delta',
-              delta: 'Hello! This is a basic Code wrapper. '
-            }
-          }
-        },
-        {
-          jsonrpc: '2.0',
-          method: 'notification',
-          params: {
-            msg: {
-              type: 'agent_message_delta',
-              delta: 'The full Code binary is not yet available. '
-            }
-          }
-        },
-        {
-          jsonrpc: '2.0',
-          method: 'notification',
-          params: {
-            msg: {
-              type: 'agent_message_delta',
-              delta: 'Please install the real Code binary for full functionality.'
-            }
-          }
-        },
-        {
-          jsonrpc: '2.0',
-          method: 'notification',
-          params: {
-            msg: {
-              type: 'task_complete',
-              success: true
-            }
-          }
-        }
-      ];
-
-      events.forEach(event => {
-        console.log(JSON.stringify(event));
-      });
+      console.log(JSON.stringify({ jsonrpc: '2.0', id: request.id, result: { status: 'processing' }}));
+      console.log(JSON.stringify({ jsonrpc: '2.0', method: 'notification', params: { msg: { type: 'agent_message_delta', delta: 'Hello! This is a basic Code wrapper. The full Code binary is not yet available. Please install the real Code binary for full functionality.' }}}));
+      console.log(JSON.stringify({ jsonrpc: '2.0', method: 'notification', params: { msg: { type: 'task_complete', success: true }}}));
     } else {
-      // Unknown method
-      const response = {
-        jsonrpc: '2.0',
-        id: request.id,
-        error: {
-          code: -32601,
-          message: 'Method not found: ' + request.method
-        }
-      };
-      console.log(JSON.stringify(response));
+      console.log(JSON.stringify({ jsonrpc: '2.0', id: request.id, error: { code: -32601, message: 'Method not found' }}));
     }
-  } catch (err) {
-    console.error('Error processing request:', err.message);
-  }
+  } catch (err) { console.error('Error:', err.message); }
 });
-
-process.on('SIGTERM', () => {
-  console.error('Received SIGTERM, shutting down...');
-  process.exit(0);
-});
-
-process.on('SIGINT', () => {
-  console.error('Received SIGINT, shutting down...');
-  process.exit(0);
-});
-
-// Keep process alive
+process.on('SIGTERM', () => process.exit(0));
+process.on('SIGINT', () => process.exit(0));
 setInterval(() => {}, 1000);
-WRAPPER_EOF
+EOF
         chmod +x /build/dist/index.js; \
     fi
 
