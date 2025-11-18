@@ -1,94 +1,57 @@
 # Setup Notes
 
-## ✅ Containers Running Successfully!
+## ✅ Automatic Build from Source
 
-Both Open WebUI and code-pipeline containers are now running and healthy!
+The Dockerfile now **automatically builds the Code binary from source** during the Docker build process!
 
-## ⚠️ Next Step: Install Real Code Binary
+### What Happens During Build
 
-The containers are using a **mock Code binary** which exits immediately. You need to install the real Code binary to enable full functionality.
+1. **Clones** the Code repository from GitHub (https://github.com/anthropics/claude-code)
+2. **Installs** all dependencies (Node.js, Rust, npm packages)
+3. **Builds** the Code binary from source
+4. **Packages** it into the Docker image
 
 ### Current Status
 
 - ✅ Docker containers: Running
 - ✅ Open WebUI: Accessible at http://localhost:3000
 - ✅ Pipeline server: Running with health checks
-- ⚠️  Code binary: Using mock (needs real binary)
+- ✅ Code binary: Built automatically from source
 
-### Error You're Seeing
+### How to Build and Run
 
-```
-RuntimeError: Request failed: Connection lost
-```
-
-This happens because the mock Code binary exits immediately instead of running as a server.
-
-### How to Fix
-
-You have three options:
-
-#### Option 1: Download Pre-built Code Binary (Fastest)
-
-If available, download a pre-built Code binary:
+Simply rebuild the Docker image - it will automatically build Code from source:
 
 ```bash
-# Download Code binary (replace with actual download link)
-wget https://github.com/just-every/code/releases/latest/download/code-linux-x64 -O code
+cd /root/code/code-pipeline
 
-# Make it executable
-chmod +x code
+# Pull the latest changes
+git pull origin claude/auto-configure-webui-pipeline-011CUqWLgGCEV5PEeT37ghZb
 
-# Copy into the running container
-docker cp code code-pipeline:/usr/local/bin/code
-
-# Restart the container
-docker restart code-pipeline
-
-# Check logs
-docker logs code-pipeline -f
-```
-
-#### Option 2: Build Code from Source
-
-```bash
-# Clone the Code repository
-cd /root/code
-git clone https://github.com/just-every/code.git code-source
-cd code-source
-
-# Build Code (requires Node.js and Rust)
-npm install
-npm run build
-
-# Copy built binary to code-pipeline directory
-cp dist/code ../code-pipeline/code-binary
-
-# Update Dockerfile to use it
-cd ../code-pipeline
-
-# Rebuild with real binary
+# Stop current containers
 docker compose down
+
+# Remove old image to force rebuild
+docker rmi code-pipeline-code-pipeline
+
+# Build with automatic source compilation (this will take a few minutes)
 docker compose build --no-cache code-pipeline
+
+# Start the services
 docker compose up -d
 ```
 
-#### Option 3: Mount Code Binary from Host
+The build process will:
+- Clone the Code repository
+- Install all dependencies
+- Build the binary from source
+- Package everything into the container
 
-```bash
-# If you have Code installed on your host
-which code
-
-# Add volume mount to docker-compose.yml:
-# volumes:
-#   - /path/to/code:/usr/local/bin/code:ro
-
-docker compose down
-docker compose up -d
-```
+**Note:** The first build will take 5-10 minutes as it compiles from source.
 
 ### Verify It's Working
 
-Once you have the real Code binary:
+After building:
 
 ```bash
 # Check Code version in container

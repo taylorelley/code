@@ -49,7 +49,7 @@ Transform [Open WebUI](https://github.com/open-webui/open-webui) into a powerful
 
 ## 🚀 Quick Start
 
-Get up and running in 3 minutes with automatic configuration:
+Get up and running with automatic configuration and automatic build from source:
 
 ```bash
 # 1. Clone repository
@@ -64,14 +64,19 @@ echo "ANTHROPIC_API_KEY=sk-ant-..." >> .env
 # OR
 echo "OPENAI_API_KEY=sk-..." >> .env
 
-# 4. Start services (automatically configured!)
+# 4. Build and start services (automatically builds Code from source!)
+docker-compose build --no-cache code-pipeline  # First build: 5-10 minutes
 docker-compose up -d
 
 # 5. Access Open WebUI
 open http://localhost:3000
 ```
 
-That's it! Open WebUI is automatically configured with the code-pipeline and ready to use. Just sign up and start chatting!
+That's it! The build process:
+- ✅ **Automatically clones** the Code repository
+- ✅ **Automatically builds** Code from source (Node.js + Rust)
+- ✅ **Automatically configures** Open WebUI with code-pipeline
+- ✅ **Ready to use** - Just sign up and start chatting!
 
 ---
 
