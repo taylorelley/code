@@ -142,9 +142,28 @@ async def chat_completions(request: Request):
                 media_type="text/event-stream"
             )
         else:
-            # Return non-streaming response
-            result = await pipeline.pipe(body)
-            return JSONResponse(result)
+            # Return non-streaming response - collect all chunks
+            full_response = ""
+            async for chunk in pipeline.pipe(body):
+                if isinstance(chunk, str):
+                    full_response += chunk
+                else:
+                    full_response += str(chunk)
+
+            return JSONResponse({
+                "id": "chatcmpl-" + user_id,
+                "object": "chat.completion",
+                "created": 1677610602,
+                "model": "code-pipeline",
+                "choices": [{
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": full_response
+                    },
+                    "finish_reason": "stop"
+                }]
+            })
 
     except Exception as e:
         logger.error(f"Error in chat completions: {e}", exc_info=True)
