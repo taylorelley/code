@@ -88,4 +88,4 @@ EXPOSE 9099
 
 # Default command (run pipeline server)
 # When used with Open WebUI, this will be overridden
-CMD ["python", "-m", "pipelines.code_pipeline"]
+CMD ["python", "server.py"]
