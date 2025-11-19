@@ -49,25 +49,34 @@ Transform [Open WebUI](https://github.com/open-webui/open-webui) into a powerful
 
 ## 🚀 Quick Start
 
-Get up and running in 5 minutes:
+Get up and running with automatic configuration and automatic build from source:
 
 ```bash
 # 1. Clone repository
 git clone https://github.com/just-every/code.git
 cd code/code-pipeline
 
-# 2. Configure environment
-cp .env.example .env
-# Edit .env and add your API keys (OPENAI_API_KEY or ANTHROPIC_API_KEY)
+# 2. Set up environment (auto-generates .env with defaults)
+./scripts/setup-env.sh
 
-# 3. Start services
+# 3. Add your API key to .env
+echo "ANTHROPIC_API_KEY=sk-ant-..." >> .env
+# OR
+echo "OPENAI_API_KEY=sk-..." >> .env
+
+# 4. Build and start services (automatically builds Code from source!)
+docker-compose build --no-cache code-pipeline  # First build: 5-10 minutes
 docker-compose up -d
 
-# 4. Access Open WebUI
+# 5. Access Open WebUI
 open http://localhost:3000
 ```
 
-That's it! You can now start chatting with Code through the web interface.
+That's it! The build process:
+- ✅ **Automatically clones** the Code repository
+- ✅ **Automatically builds** Code from source (Node.js + Rust)
+- ✅ **Automatically configures** Open WebUI with code-pipeline
+- ✅ **Ready to use** - Just sign up and start chatting!
 
 ---
 
@@ -142,7 +151,7 @@ APPROVAL_POLICY=on-request
 #### Step 3: Start Services
 
 ```bash
-# Start in background
+# Start in background (with auto-configuration)
 docker-compose up -d
 
 # View logs
@@ -152,11 +161,17 @@ docker-compose logs -f
 docker-compose ps
 ```
 
+The services will automatically:
+- ✅ Wait for code-pipeline to be healthy before starting Open WebUI
+- ✅ Configure Open WebUI to use the code-pipeline
+- ✅ Enable signup for easy onboarding
+- ✅ Set up health checks for reliability
+
 #### Step 4: Access Open WebUI
 
 1. Open browser to http://localhost:3000
 2. Create an account (first user becomes admin)
-3. Start chatting with Code!
+3. The code-pipeline model is already configured - just select it and start chatting!
 
 #### Step 5: Verify Installation
 
@@ -261,6 +276,100 @@ python -m pytest tests/ -v
 
 # 6. Start development server
 python pipelines/code_pipeline.py
+```
+
+---
+
+## ⚡ Automatic Configuration
+
+Open WebUI is automatically configured and ready to use after running `docker compose up -d`. Here's what happens automatically:
+
+### 🔄 Auto-Configuration Features
+
+1. **Health Checks**
+   - Code-pipeline has a health endpoint at `/health`
+   - Open WebUI waits for code-pipeline to be healthy before starting
+   - Ensures proper startup order and reliability
+
+2. **Pre-configured Environment**
+   - Code-pipeline endpoint: `http://code-pipeline:9099/v1`
+   - OpenAI-compatible API format
+   - Dummy API key (no auth required between containers)
+
+3. **Service Dependencies**
+   - Docker Compose ensures code-pipeline starts first
+   - Open WebUI won't start until code-pipeline is healthy
+   - Automatic retry on service failures
+
+4. **Default Settings**
+   - Signup enabled for easy onboarding
+   - WebUI name set to "Code WebUI"
+   - Pipeline automatically available in model dropdown
+
+### 🛠️ Setup Script
+
+Use the provided setup script to auto-generate your .env file:
+
+```bash
+# Run the setup script
+./scripts/setup-env.sh
+
+# This creates .env with sensible defaults:
+# - CODE_BINARY_PATH=/usr/local/bin/code
+# - CODE_WORKING_DIR=/data/code-workspace
+# - PIPELINES_PORT=9099
+# - LOG_LEVEL=info
+# - SANDBOX_MODE=workspace-write
+# - APPROVAL_POLICY=on-request
+```
+
+Then just add your API key:
+
+```bash
+# For Anthropic (recommended)
+echo "ANTHROPIC_API_KEY=sk-ant-your-key-here" >> .env
+
+# For OpenAI
+echo "OPENAI_API_KEY=sk-your-key-here" >> .env
+
+# For Google AI
+echo "GOOGLE_API_KEY=your-key-here" >> .env
+```
+
+### 🚀 Zero-Configuration Startup
+
+After setting your API key, simply run:
+
+```bash
+docker-compose up -d
+```
+
+And you're done! Open WebUI is ready at http://localhost:3000 with:
+- ✅ Code-pipeline automatically configured
+- ✅ Model selection ready
+- ✅ All features enabled (browser, auto drive, MCP tools)
+- ✅ Secure defaults (workspace sandbox, approval workflows)
+
+### 🔍 Verification
+
+Check that everything is configured correctly:
+
+```bash
+# Check service health
+curl http://localhost:9099/health
+# Should return: {"status":"healthy","service":"code-pipeline","version":"1.0.0"}
+
+# Check Open WebUI health
+curl http://localhost:3000/health
+# Should return healthy status
+
+# View service logs
+docker-compose logs code-pipeline
+docker-compose logs open-webui
+
+# Check service status
+docker-compose ps
+# Both services should show "Up (healthy)"
 ```
 
 ---

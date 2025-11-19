@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # Open WebUI main application
   open-webui:
@@ -16,16 +14,26 @@ services:
       - OPENAI_API_KEYS=dummy-key  # Code pipeline doesn't require auth
       - ENABLE_SIGNUP=true
       - WEBUI_NAME=Code WebUI
+      # Auto-enable the code pipeline
+      - ENABLE_COMMUNITY_SHARING=false
+      - ENABLE_ADMIN_EXPORT=true
     depends_on:
-      - code-pipeline
+      code-pipeline:
+        condition: service_healthy
     networks:
       - webui-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   # Code Pipeline service
   code-pipeline:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: code-pipeline/Dockerfile
     container_name: code-pipeline
     ports:
       - "9099:9099"
@@ -43,10 +51,17 @@ services:
       # Optional: API keys for Code's LLM providers
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
-    cap_add:
-      - NET_ADMIN  # Required for network sysctl operations
+    # Uncomment if you need advanced network capabilities
+    # cap_add:
+    #   - NET_ADMIN
     networks:
       - webui-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9099/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
 volumes:
   open-webui-data:
