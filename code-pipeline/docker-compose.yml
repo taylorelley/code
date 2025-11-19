@@ -32,8 +32,8 @@ services:
   # Code Pipeline service
   code-pipeline:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: code-pipeline/Dockerfile
     container_name: code-pipeline
     ports:
       - "9099:9099"
