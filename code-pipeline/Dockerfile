@@ -50,9 +50,7 @@ RUN if [ -f package.json ]; then \
     fi
 
 # Create fallback wrapper if no build artifacts exist
-RUN if [ ! -f /build/dist/index.js ]; then \
-        echo "Creating fallback Node.js wrapper..." && \
-        cat > /build/dist/index.js << 'EOF' && \
+COPY <<EOF /tmp/code-wrapper.js
 #!/usr/bin/env node
 const readline = require('readline');
 const { stdin, stdout } = process;
@@ -79,6 +77,10 @@ process.on('SIGTERM', () => process.exit(0));
 process.on('SIGINT', () => process.exit(0));
 setInterval(() => {}, 1000);
 EOF
+
+RUN if [ ! -f /build/dist/index.js ]; then \
+        echo "Using fallback Node.js wrapper..." && \
+        cp /tmp/code-wrapper.js /build/dist/index.js && \
         chmod +x /build/dist/index.js; \
     fi
 
