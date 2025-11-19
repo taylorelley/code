@@ -56,10 +56,10 @@ RUN ls -l /usr/local/bin/code && \
     /usr/local/bin/code --version
 
 # Copy pipeline code
-COPY requirements.txt .
+COPY code-pipeline/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+COPY code-pipeline/ .
 
 # Set up working directory for Code sessions
 RUN mkdir -p /data/code-workspace
